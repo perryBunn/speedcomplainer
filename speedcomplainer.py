@@ -6,9 +6,11 @@ import daemon
 import signal
 import threading
 import twitter
-import json 
+import json
 import random
 from logger import Logger
+import subprocess
+import re
 
 shutdownFlag = False
 
@@ -72,28 +74,60 @@ class PingTest(threading.Thread):
         self.numPings = numPings
         self.pingTimeout = pingTimeout
         self.maxWaitTime = maxWaitTime
+        header_output = False
+
         self.config = json.load(open('./config.json'))
+        if not os.path.exists(self.config['log']['files']['ping']):
+            print "Ping Log File does not exist.. Creating Header"
+            header_output = True
         self.logger = Logger(self.config['log']['type'], { 'filename': self.config['log']['files']['ping'] })
+        if header_output:
+            self.logger.log( ['Date', 'Success', 'Packet Loss %', 'Min', 'Avg', 'Max'])
 
     def run(self):
         pingResults = self.doPingTest()
         self.logPingResults(pingResults)
 
     def doPingTest(self):
-        response = os.system("ping -c %s -W %s -w %s 8.8.8.8 > /dev/null 2>&1" % (self.numPings, (self.pingTimeout * 1000), self.maxWaitTime))
+        if sys.platform == "darwin":
+            output = subprocess.check_output('ping -c %s -W %s -t %s 8.8.8.8' % (self.numPings, (self.pingTimeout * 1000), self.maxWaitTime), shell=True)
+            output = output.split('\n')[-3:]
+            xmit_stats = output[0].split(",")
+            timing_stats = output[1].split("=")[1].split("/")
+
+            packet_loss = float(xmit_stats[2].split("%")[0])
+
+            ping_min = float(timing_stats[0])
+            ping_avg = float(timing_stats[1])
+            ping_max = float(timing_stats[2])
+            response = packet_loss
+#            response = os.system("ping -c %s -W %s -t %s 8.8.8.8 > /dev/null 2>&1" % (self.numPings, (self.pingTimeout * 1000), self.maxWaitTime))
+#        else:
+#            response = os.system("ping -c %s -W %s -w %s 8.8.8.8 > /dev/null 2>&1" % (self.numPings, (self.pingTimeout * 1000), self.maxWaitTime))
         success = 0
         if response == 0:
             success = 1
-        return { 'date': datetime.now(), 'success': success }
+        return { 'date': datetime.now(), 'success': success, 'packet_loss' : packet_loss,
+                 'min' : ping_min, 'max' : ping_max, 'avg' : ping_avg}
 
     def logPingResults(self, pingResults):
-        self.logger.log([ pingResults['date'].strftime('%Y-%m-%d %H:%M:%S'), str(pingResults['success'])])
+        self.logger.log([ pingResults['date'].strftime('%Y-%m-%d %H:%M:%S'),
+                          str(pingResults['success']),
+                          str(pingResults['packet_loss']),
+                          str(pingResults['min']),
+                          str(pingResults['avg']),
+                          str(pingResults['max']) ])
 
 class SpeedTest(threading.Thread):
     def __init__(self):
         super(SpeedTest, self).__init__()
         self.config = json.load(open('./config.json'))
+        if not os.path.exists(self.config['log']['files']['speed']):
+            print "Speed Test Log File does not exist, creating header."
+            header_output = True
         self.logger = Logger(self.config['log']['type'], { 'filename': self.config['log']['files']['speed'] })
+        if header_output:
+            self.logger.log([ 'Date', 'Upload Speed', 'Download Speed', 'Ping Speed' ])
 
     def run(self):
         speedTestResults = self.doSpeedTest()
