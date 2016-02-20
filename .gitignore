@@ -3,3 +3,13 @@
 *.pyc
 
 *.csv
+
+disconnects.txt
+
+*.xlsx
+
+*.numbers
+
+traceresults.txt
+
+tracerouteparser.py
