@@ -1,3 +1,4 @@
+# coding: utf-8
 """
 :Module: Config
 :Date: 2015-05-1
@@ -29,35 +30,29 @@
 
 code::
 
-    load_config_data()
-    print USER
-    print EMAIL
+    load_data(<fqfn>)
+    print config.configdata["USER"]
+    print config.configdata["EMAIL"]
 
 """
 #####################################################
 #   Batteries Included imports
-import ConfigParser
+from __future__ import absolute_import
+from __future__ import print_function
+#import six.moves.configparser
+import configparser
+from configparser import ConfigParser
 import os
 import os.path
+import sys
+import fastnumbers
 
 #####################################################
 #   3rd party imports
 #
 #   None
 
-CONFIGURATION = {}
-
-
-def try_int(value):
-    """
-    Try to convert value into an integer, and ignore any exceptions.
-    If fails, just return the un-altered value.
-    """
-    try:
-        return int(value.strip())
-    except:
-        return value
-
+configdata = {}
 
 def load_data(filename=None, ini_group=""):
     """
@@ -82,50 +77,41 @@ code::
     """
     if filename is None:
         filename = "settings.ini"
-    data = {}
+
     try:
-        config = ConfigParser.SafeConfigParser()
-        config.read(os.path.join(os.getcwd(), filename))
-        for option_name in config.options(ini_group.strip()):
-            data[option_name] = try_int(config.get(ini_group, option_name))
-    except ConfigParser.NoSectionError:
-        pass
-    return data
-
-
-def load_config_data(settings_file=None, sections=()):
-    """
-Args:
-
-    filename : string
-        (default value = None) To override the filename
-        pass a string containing the new filename.
-
-Returns:
-    dictionary
-        email dictionary
-    dictionary
-        user dictionary
-
-
-code::
-
-    load_config_data()
-    print USER
-    print EMAIL
-
-    """
-    for section_name in sections:
-        CONFIGURATION[section_name] = load_data(settings_file, section_name)
-        if CONFIGURATION[section_name] == {}:
-            print "* INI file does not contain any data for section (%s)." %\
-                section_name
-
+#        config = six.moves.configparser.SafeConfigParser()
+        config = configparser.SafeConfigParser()
+        config.read(filename)
+        for section in config.sections():
+            #print("Section : ",section)
+            sname = section.strip()
+            configdata[sname]={}
+            for option_name in config.options(section.strip()):
+                value = config.get(sname, option_name).split(",")
+                if len(value) == 1:
+                    if (option_name.endswith("_path") or
+                        option_name.endswith("_filename")):
+#                        print (option_name)
+                        value[0] = os.path.abspath(value[0])
+                    configdata[sname][option_name] = fastnumbers.fast_int(value[0])
+                else:
+                    configdata[sname][option_name] = []
+                    for cleanvalue in value:
+                        if (option_name.endswith("_path") or
+                            option_name.endswith("_filename")):
+                            cleanvalue = os.path.abspath(cleanvalue)
+                        configdata[sname][option_name].append(cleanvalue.strip())
+#    except six.moves.configparser.NoSectionError:
+    except configparser.NoSectionError:
+        print("Error reading %s" % filename)
 
 if __name__ == "__main__":
-    load_config_data(sections=("NYSIIS_USER", "EMAIL", "NYSIIS", "CONFLUENCE"))
-    print CONFIGURATION.keys()
-    print "User - %s\n" % CONFIGURATION["NYSIIS_USER"]
-    print "Email - %s\n" % CONFIGURATION["EMAIL"]
-    print "NYSIIS - %s\n" % CONFIGURATION["NYSIIS"]
-    print "CONFLUENCE - %s\n" % CONFIGURATION["CONFLUENCE"]
+    load_data()
+   #load_config_data()
+#    print "User - %s\n" % USER
+#    print "Email - %s\n" % EMAIL
+#    print "NYSIIS - %s\n" % NYSIIS
+#    print "CONFLUENCE - %s\n" % CONFLUENCE
+
+    for x in configdata.keys():
+        print(x, configdata[x])

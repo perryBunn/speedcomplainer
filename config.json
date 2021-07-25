@@ -1,5 +1,4 @@
-{
-    "twitter": {
+{    "twitter": {
         "twitterToken": "",
         "twitterConsumerKey": "",
         "twitterTokenSecret": "",
@@ -24,7 +23,7 @@
         "type": "csv",
         "files": {
             "ping": "pingresults.csv",
-            "speed": "speedrestuls.csv"
+            "speed": "speedresults.csv"
         }
     }
 }

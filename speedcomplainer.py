@@ -1,5 +1,6 @@
 import configdata
-from configdata import CONFIGURATION
+from configdata import configdata as CONFIGURATION
+from csv_common import BaseCsvFile
 import os
 import sys
 import time
@@ -13,19 +14,27 @@ import random
 from logger import Logger
 import subprocess
 import re
+import speedtest
+import pingparsing
+import humanize
+
+csv_ping_headers =  ['Date', 'target', 'Success', 'Sent', 'Received', 'Packet Loss %', 'Min', 'Avg', 'Max']
+csv_speed_headers = ['Date', 'target', 'Location', 'Upload Speed', 'Up readable', 'Download Speed',
+                     'Down readable', 'Ping', 'Latency']
+
 
 shutdownFlag = False
 
 def main(filename, argv):
-    print "======================================"
-    print " Starting Speed Complainer!           "
-    print " Lets get noisy!                      "
-    print "======================================"
+    print("======================================")
+    print(" Starting Speed Complainer!           ")
+    print(" Lets get noisy!                      ")
+    print("======================================")
 
     global shutdownFlag
-    configdata.load_config_data(settings_file="settings.ini",
-        sections=("PING", "SPEEDTEST", "TWITTER", "TRACEROUTE", "LOG"))
-    print CONFIGURATION
+    configdata.load_data(filename="settings.ini",
+        ini_group=("PING", "SPEEDTEST", "TWITTER", "TRACEROUTE", "LOG"))
+    print(CONFIGURATION)
     signal.signal(signal.SIGINT, shutdownHandler)
 
     monitor = Monitor()
@@ -41,7 +50,7 @@ def main(filename, argv):
                 time.sleep(1)
 
         except Exception as e:
-            print 'Error: %s' % e
+            print('Error: %s' % e)
             import traceback
             traceback.print_exc()
             sys.exit(1)
@@ -50,7 +59,7 @@ def main(filename, argv):
 
 def shutdownHandler(signo, stack_frame):
     global shutdownFlag
-    print 'Got shutdown signal (%s: %s).' % (signo, stack_frame)
+    print('Got shutdown signal (%s: %s).' % (signo, stack_frame))
     shutdownFlag = True
 
 class Monitor():
@@ -89,93 +98,72 @@ class PingTest(threading.Thread):
 
         self.config = json.load(open('./config.json'))
         if not os.path.exists(self.config['log']['files']['ping']):
-            print "Ping Log File does not exist.. Creating Header"
+            print("Ping Log File does not exist.. Creating Header")
             header_output = True
-        self.pinglogger = Logger(self.config['log']['type'], { 'filename': CONFIGURATION["PING"]["logfilename"]})
+
+        self.pinglogger = BaseCsvFile(CONFIGURATION["PING"]["logfilename"],
+                                      output_headers=csv_ping_headers)
+        self.pinglogger.setup_append(writeheader=True)
+
+#        self.pinglogger = Logger(self.config['log']['type'], { 'filename': CONFIGURATION["PING"]["logfilename"]})
 #        if CONFIGURATION["TRACEROUTE"]["logfilename"] is not "":
-        self.tracelogger = Logger(self.config['log']['type'], { 'filename': CONFIGURATION["TRACEROUTE"]["logfilename"]})
-        if header_output:
-            self.pinglogger.log( ['Date', 'Success', 'Sent', 'Received', 'Packet Loss %', 'Min', 'Avg', 'Max'])
+#        self.tracelogger = Logger(self.config['log']['type'], { 'filename': CONFIGURATION["TRACEROUTE"]["logfilename"]})
+#        if header_output:
+#            self.pinglogger.log( ['Date', 'Success', 'Sent', 'Received', 'Packet Loss %', 'Min', 'Avg', 'Max'])
 
 
     def run(self):
         pingResults = self.doPingTest()
         if pingResults is None:
-            print "Ping test failed"
+            print("Ping test failed")
         self.logPingResults(pingResults)
 
     def doPingTest(self):
-        if sys.platform == "darwin":
-            try:
-                pingoutput = subprocess.check_output('ping -c %s -W %s -t %s %s' % (self.numPings,
-                                                                                    (self.pingTimeout * 1000),
-                                                                                    self.maxWaitTime,
-                                                                                    self.pingTarget),
-                                                                                    shell=True)
-                pingoutput = pingoutput.split('\n')[-3:]
-                xmit_stats = pingoutput[0].split(",")
-                timing_stats = pingoutput[1].split("=")[1].split("/")
-                sent = int(xmit_stats[0].strip().split(" ")[0])
-                received = int(xmit_stats[1].strip().split(" ")[0])
-                packet_loss = float(xmit_stats[2].split("%")[0])
-
-                ping_min = float(timing_stats[0])
-                ping_avg = float(timing_stats[1])
-                ping_max = float(timing_stats[2])
-                response = packet_loss
-    #            response = os.system("ping -c %s -W %s -t %s 8.8.8.8 > /dev/null 2>&1" % (self.numPings, (self.pingTimeout * 1000), self.maxWaitTime))
-    #        else:
-    #            response = os.system("ping -c %s -W %s -w %s 8.8.8.8 > /dev/null 2>&1" % (self.numPings, (self.pingTimeout * 1000), self.maxWaitTime))
-                success = 0
-                if response == 0:
-                    success = 1
-                if int(packet_loss) > 0  and CONFIGURATION["TRACEROUTE"]["traceroute_target"] is not "":
-                    print "Packet Loss Detected, running traceroute...",
-#                     tracerouteoutput = subprocess.check_output('traceroute -w %s %s' % (self.maxWaitTime,
-#                                                                                         CONFIGURATION["TRACEROUTE"]["traceroute_target"]),
-#                                                                                         stderr=subprocess.PIPE, shell=True)#STDOUT, shell=True)
-                    print '%s %s' % (CONFIGURATION["TRACEROUTE"]["commandline"],
-                                                                        CONFIGURATION["TRACEROUTE"]["traceroute_target"])
-                    tracerouteoutput = subprocess.check_output('%s %s' % (CONFIGURATION["TRACEROUTE"]["commandline"],
-                                                                        CONFIGURATION["TRACEROUTE"]["traceroute_target"]),
-                                                                        stderr=subprocess.PIPE, shell=True)#STDOUT, shell=True)
-                    print "Traceroute Captured...."
-                    self.tracelogger.log(["-"*30])
-                    self.tracelogger.log(["%s" % datetime.now()])
-                    self.tracelogger.log(["%s" % tracerouteoutput])
-                    self.tracelogger.log(["-"*30])
-
-            except subprocess.CalledProcessError:
-                print "Error running ping command @ %s " % datetime.now()
-                return { 'date': datetime.now(), 'success': 0, 'packet_loss' : '-',
-                         'min' : "-", 'max' : "-", 'avg' : "-", 'sent':"-", 'received':"-"} #, "trace":tracerouteoutput}
-
-        return { 'date': datetime.now(), 'success': success, 'packet_loss' : packet_loss,
-                 'min' : ping_min, 'max' : ping_max, 'avg' : ping_avg, 'sent':sent, 'received':received}#,
-#                 "trace":tracerouteoutput}
+        ping_parser = pingparsing.PingParsing()
+        transmitter = pingparsing.PingTransmitter()
+        transmitter.destination = self.pingTarget
+        transmitter.count = self.numPings
+        text_output = transmitter.ping()
+        results = ping_parser.parse(text_output).as_dict()
+#csv_ping_headers =  ['Date', 'target', 'Success', 'Sent', 'Received', 'Packet Loss %', 'Min', 'Avg', 'Max']
+        return { 'Date': datetime.now(),
+                 'target':self.pingTarget,
+                 'Success': results["packet_receive"],
+                 'Packet Loss %' : results["packet_loss_count"],
+                 'Min' : results["rtt_min"],
+                 'Max' : results["rtt_max"],
+                 'Avg' : results["rtt_avg"],
+                 'Sent': results["packet_transmit"],
+                 'Received':results["packet_receive"]}#,
 
     def logPingResults(self, pingResults):
-        self.pinglogger.log([ pingResults['date'].strftime('%Y-%m-%d %H:%M:%S'),
-                          str(pingResults['success']),
-                          str(pingResults['sent']),
-                          str(pingResults['received']),
-                          str(pingResults['packet_loss']),
-                          str(pingResults['min']),
-                          str(pingResults['avg']),
-                          str(pingResults['max'])])#,
+        self.pinglogger.writerow(pingResults)
 
 
 class SpeedTest(threading.Thread):
+    """
+    >>> results
+{'download': 53248457.88897891, 'upload': 3830040.891172554, 'ping': 42.373,
+'server': {'url': 'http://st.buf.as201971.net:8080/speedtest/upload.php', 'lat': '42.8864',
+           'lon': '-78.8786', 'name': 'Buffalo, NY', 'country': 'United States', 'cc': 'US',
+           'sponsor': 'CreeperHost LTD', 'id': '31483', 'host': 'st.buf.as201971.net:8080',
+           'd': 109.47235274008302, 'latency': 42.373}, 'timestamp': '2021-07-23T01:50:53.316870Z',
+           'bytes_sent': 5242880, 'bytes_received': 66706596,
+           'share': 'http://www.speedtest.net/result/11769129726.png',
+           'client': {'ip': '98.10.204.21', 'lat': '43.114', 'lon': '-77.5689',
+           'isp': 'Spectrum', 'isprating': '3.7', 'rating': '0', 'ispdlavg': '0',
+           'ispulavg': '0', 'loggedin': '0', 'country': 'US'}}
+    """
     def __init__(self):
         super(SpeedTest, self).__init__()
         header_output = False
         self.config = json.load(open('./config.json'))
         if not os.path.exists(self.config['log']['files']['speed']):
-            print "Speed Test Log File does not exist, creating header."
+            print("Speed Test Log File does not exist, creating header.")
             header_output = True
-        self.logger = Logger(self.config['log']['type'], {'filename': CONFIGURATION["SPEEDTEST"]["logfilename"]})
-        if header_output:
-            self.logger.log([ 'Date', 'Upload Speed', 'Download Speed', 'Ping Speed' ])
+        self.speedlogger = BaseCsvFile(CONFIGURATION["SPEEDTEST"]["logfilename"],
+                                      output_headers=csv_speed_headers)
+        self.speedlogger.setup_append(writeheader=True)
 
     def run(self):
         speedTestResults = self.doSpeedTest()
@@ -183,41 +171,44 @@ class SpeedTest(threading.Thread):
         self.tweetResults(speedTestResults)
 
     def doSpeedTest(self):
-        # run a speed test
         try:
-            result = os.popen("/usr/local/bin/speedtest-cli --simple").read()
-        except socket.timeout:
-            pass
-        if 'Cannot' in result or result == None:
-            return { 'date': datetime.now(), 'uploadResult': '-', 'downloadResult': '-', 'ping': '-' }
+            tester = speedtest.Speedtest()
+            tester.download()
+            tester.upload()
+            results = tester.results.dict()
+#            csv_speed_headers = ['Date', 'target', 'Location', 'Upload Speed', 'Up readable', 'Download Speed',
+#                     'Down readable', 'Ping', 'Latency']
 
-        # Result:
-        # Ping: 529.084 ms
-        # Download: 0.52 Mbit/s
-        # Upload: 1.79 Mbit/s
-
-        resultSet = result.split('\n')
-        pingResult = resultSet[0]
-        downloadResult = resultSet[1]
-        uploadResult = resultSet[2]
-
-        pingResult = float(pingResult.replace('Ping: ', '').replace(' ms', ''))
-        downloadResult = float(downloadResult.replace('Download: ', '').replace(' Mbit/s', ''))
-        uploadResult = float(uploadResult.replace('Upload: ', '').replace(' Mbit/s', ''))
-
-        return { 'date': datetime.now(), 'uploadResult': uploadResult, 'downloadResult': downloadResult, 'ping': pingResult }
+            test_results = {'Date':datetime.now(),
+                            'target':results["server"]["host"],
+                            'Location':results["server"]["name"],
+                            'Ping':results["ping"],
+                            'Upload Speed':results["upload"],
+                            'Up readable':humanize.naturalsize(results["upload"]),
+                            'Download Speed':results["download"],
+                            'Down readable':humanize.naturalsize(results["download"]),
+                            'Latency':results["server"]["latency"]}
+        except speedtest.SpeedtestBestServerFailure:
+            results = {'Date':datetime.now(),
+                       'target':"Error (Best Server)",
+                       'Ping':255,
+                       'Upload Speed':-1,
+                       'Download Speed':-1,
+                       'Latency':255}
+        return test_results
 
     def logSpeedTestResults(self, speedTestResults):
-        self.logger.log([ speedTestResults['date'].strftime('%Y-%m-%d %H:%M:%S'), str(speedTestResults['uploadResult']), str(speedTestResults['downloadResult']), str(speedTestResults['ping']) ])
+        self.speedlogger.writerow(speedTestResults)
 
 
     def tweetResults(self, speedTestResults):
         thresholdMessages = self.config['tweetThresholds']
         message = None
-        for (threshold, messages) in thresholdMessages.items():
+        for (threshold, messages) in list(thresholdMessages.items()):
             threshold = float(threshold)
-            if speedTestResults['downloadResult'] < threshold:
-                message = messages[random.randint(0, len(messages) - 1)].replace('{tweetTo}', self.config['tweetTo']).replace('{internetSpeed}', self.config['internetSpeed']).replace('{downloadResult}', str(speedTestResults['downloadResult']))
+            if speedTestResults['Download Speed'] < threshold:
+                message = messages[random.randint(0,len(messages) - 1)].replace('{tweetTo}',
+                                    self.config['tweetTo']).replace('{internetSpeed}', self.config['internetSpeed']).replace('{downloadResult}', str(speedTestResults['downloadResult']))
 
         if message:
             api = twitter.Api(consumer_key=self.config['twitter']['twitterConsumerKey'],
