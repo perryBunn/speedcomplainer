@@ -1,6 +1,7 @@
 import configdata
 from configdata import configdata as CONFIGURATION
-from csv_common import BaseCsvFile
+#from csv_common import BaseCsvFile
+from rotating_csv import RotatingCsvFile
 import os
 import sys
 import time
@@ -11,9 +12,9 @@ import threading
 import twitter      # python-twitter, not twitter
 import json
 import random
-from logger import Logger
+#from logger import Logger
 import subprocess
-import re
+#import re
 import speedtest
 import pingparsing
 import humanize
@@ -97,12 +98,15 @@ class PingTest(threading.Thread):
         header_output = False
 
         self.config = json.load(open('./config.json'))
-        if not os.path.exists(self.config['log']['files']['ping']):
-            print("Ping Log File does not exist.. Creating Header")
-            header_output = True
+#         if not os.path.exists(self.config['log']['files']['ping']):
+#             print("Ping Log File does not exist.. Creating Header")
+#             header_output = True
 
-        self.pinglogger = BaseCsvFile(CONFIGURATION["PING"]["logfilename"],
-                                      output_headers=csv_ping_headers)
+#        self.pinglogger = BaseCsvFile(CONFIGURATION["PING"]["logfilename"],
+#                                      output_headers=csv_ping_headers)
+        self.pinglogger = RotatingCsvFile(suffix=CONFIGURATION["PING"]["logfilename"],
+                                          output_headers=csv_ping_headers,
+                                          directory="data")
         self.pinglogger.setup_append(writeheader=True)
 
 #        self.pinglogger = Logger(self.config['log']['type'], { 'filename': CONFIGURATION["PING"]["logfilename"]})
@@ -158,12 +162,16 @@ class SpeedTest(threading.Thread):
         super(SpeedTest, self).__init__()
         header_output = False
         self.config = json.load(open('./config.json'))
-        if not os.path.exists(self.config['log']['files']['speed']):
-            print("Speed Test Log File does not exist, creating header.")
-            header_output = True
-        self.speedlogger = BaseCsvFile(CONFIGURATION["SPEEDTEST"]["logfilename"],
-                                      output_headers=csv_speed_headers)
+#         if not os.path.exists(self.config['log']['files']['speed']):
+#             print("Speed Test Log File does not exist, creating header.")
+#             header_output = True
+        self.speedlogger = RotatingCsvFile(suffix=CONFIGURATION["SPEEDTEST"]["logfilename"],
+                                          output_headers=csv_speed_headers,
+                                          directory="data")
         self.speedlogger.setup_append(writeheader=True)
+#        self.speedlogger = BaseCsvFile(CONFIGURATION["SPEEDTEST"]["logfilename"],
+#                                      output_headers=csv_speed_headers)
+#        self.speedlogger.setup_append(writeheader=True)
 
     def run(self):
         speedTestResults = self.doSpeedTest()
@@ -173,6 +181,7 @@ class SpeedTest(threading.Thread):
     def doSpeedTest(self):
         try:
             tester = speedtest.Speedtest()
+            tester.get_best_server()
             tester.download()
             tester.upload()
             results = tester.results.dict()
