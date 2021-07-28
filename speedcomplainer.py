@@ -181,7 +181,18 @@ class SpeedTest(threading.Thread):
     def doSpeedTest(self):
         try:
             tester = speedtest.Speedtest()
-            tester.get_best_server()
+            servers = tester.get_closest_servers()
+            if CONFIGURATION["SPEEDTEST"]["exclude_hosts"] not in ["", None]:
+                new_servers = []
+                for server in servers:
+                    if server["id"] not in CONFIGURATION["SPEEDTEST"]["exclude_hosts"]:
+                        new_servers.append(server)
+                    else:
+                        print("Skipping Host ID ", server["id"])
+            else:
+                new_servers=servers
+            #tester.get_best_server(exclude=[])
+            tester.get_best_server(servers=new_servers)
             tester.download()
             tester.upload()
             results = tester.results.dict()
