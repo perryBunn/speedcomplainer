@@ -109,6 +109,21 @@ class PingTest(threading.Thread):
                                           directory="data")
         self.pinglogger.setup_append(writeheader=True)
 
+#                 if int(packet_loss) > 0  and CONFIGURATION["TRACEROUTE"]["traceroute_target"] is not "":
+#                     print("Packet Loss Detected, running traceroute...", end=' ')
+# #                     tracerouteoutput = subprocess.check_output('traceroute -w %s %s' % (self.maxWaitTime,
+# #                                                                                         CONFIGURATION["TRACEROUTE"]["traceroute_target"]),
+# #                                                                                         stderr=subprocess.PIPE, shell=True)#STDOUT, shell=True)
+#                     print('%s %s' % (CONFIGURATION["TRACEROUTE"]["commandline"],
+#                                                                         CONFIGURATION["TRACEROUTE"]["traceroute_target"]))
+#                     tracerouteoutput = subprocess.check_output('%s %s' % (CONFIGURATION["TRACEROUTE"]["commandline"],
+#                                                                         CONFIGURATION["TRACEROUTE"]["traceroute_target"]),
+#                                                                         stderr=subprocess.PIPE, shell=True)#STDOUT, shell=True)
+#                     print("Traceroute Captured....")
+#                     self.tracelogger.log(["-"*30])
+#                     self.tracelogger.log(["%s" % datetime.now()])
+#                     self.tracelogger.log(["%s" % tracerouteoutput])
+#                     self.tracelogger.log(["-"*30])
 #        self.pinglogger = Logger(self.config['log']['type'], { 'filename': CONFIGURATION["PING"]["logfilename"]})
 #        if CONFIGURATION["TRACEROUTE"]["logfilename"] is not "":
 #        self.tracelogger = Logger(self.config['log']['type'], { 'filename': CONFIGURATION["TRACEROUTE"]["logfilename"]})
