@@ -19,7 +19,7 @@ import speedtest
 import pingparsing
 import humanize
 
-csv_ping_headers =  ['Date', 'target', 'Success', 'Sent', 'Received', 'Packet Loss %', 'Min', 'Avg', 'Max']
+csv_ping_headers =  ['Date', 'target', 'Success', 'Sent', 'Received', 'Packet Loss #', 'Min', 'Avg', 'Max']
 csv_speed_headers = ['Date', 'target', 'Location', 'Upload Speed', 'Up readable', 'Download Speed',
                      'Down readable', 'Ping', 'Latency']
 
@@ -98,44 +98,37 @@ class PingTest(threading.Thread):
         header_output = False
 
         self.config = json.load(open('./config.json'))
-#         if not os.path.exists(self.config['log']['files']['ping']):
-#             print("Ping Log File does not exist.. Creating Header")
-#             header_output = True
-
-#        self.pinglogger = BaseCsvFile(CONFIGURATION["PING"]["logfilename"],
-#                                      output_headers=csv_ping_headers)
         self.pinglogger = RotatingCsvFile(suffix=CONFIGURATION["PING"]["logfilename"],
                                           output_headers=csv_ping_headers,
                                           directory="data")
         self.pinglogger.setup_append(writeheader=True)
-
-#                 if int(packet_loss) > 0  and CONFIGURATION["TRACEROUTE"]["traceroute_target"] is not "":
-#                     print("Packet Loss Detected, running traceroute...", end=' ')
-# #                     tracerouteoutput = subprocess.check_output('traceroute -w %s %s' % (self.maxWaitTime,
-# #                                                                                         CONFIGURATION["TRACEROUTE"]["traceroute_target"]),
-# #                                                                                         stderr=subprocess.PIPE, shell=True)#STDOUT, shell=True)
-#                     print('%s %s' % (CONFIGURATION["TRACEROUTE"]["commandline"],
-#                                                                         CONFIGURATION["TRACEROUTE"]["traceroute_target"]))
-#                     tracerouteoutput = subprocess.check_output('%s %s' % (CONFIGURATION["TRACEROUTE"]["commandline"],
-#                                                                         CONFIGURATION["TRACEROUTE"]["traceroute_target"]),
-#                                                                         stderr=subprocess.PIPE, shell=True)#STDOUT, shell=True)
-#                     print("Traceroute Captured....")
-#                     self.tracelogger.log(["-"*30])
-#                     self.tracelogger.log(["%s" % datetime.now()])
-#                     self.tracelogger.log(["%s" % tracerouteoutput])
-#                     self.tracelogger.log(["-"*30])
-#        self.pinglogger = Logger(self.config['log']['type'], { 'filename': CONFIGURATION["PING"]["logfilename"]})
-#        if CONFIGURATION["TRACEROUTE"]["logfilename"] is not "":
-#        self.tracelogger = Logger(self.config['log']['type'], { 'filename': CONFIGURATION["TRACEROUTE"]["logfilename"]})
-#        if header_output:
-#            self.pinglogger.log( ['Date', 'Success', 'Sent', 'Received', 'Packet Loss %', 'Min', 'Avg', 'Max'])
-
 
     def run(self):
         pingResults = self.doPingTest()
         if pingResults is None:
             print("Ping test failed")
         self.logPingResults(pingResults)
+        if pingResults["Packet Loss #"] > 0  and CONFIGURATION["TRACEROUTE"]["traceroute_target"] != "":
+#            print("Packet Loss Detected, running traceroute...", end=' ')
+            self.doTraceRoute()
+
+    def doTraceRoute(self):
+       if CONFIGURATION["TRACEROUTE"]["logfilename"] != "":
+            tracerouteoutput = subprocess.check_output(CONFIGURATION["TRACEROUTE"]["commandline"] +\
+                                                      [str(CONFIGURATION["TRACEROUTE"]["timeout"])] +\
+                                                      [CONFIGURATION["TRACEROUTE"]["traceroute_target"]],
+                                                                stderr=subprocess.PIPE)#STDOUT, shell=True)
+            print("Traceroute Captured....")
+            with open(CONFIGURATION["TRACEROUTE"]["logfilename"]+'.txt', 'a') as tracelog:
+#                tracelog.writelines(["-"*30, '\n'])
+                tracelog.writelines(["%s" % datetime.now(), '\n',
+                                     '\tTraceRoute to %s' % CONFIGURATION["TRACEROUTE"]["traceroute_target"],
+                                     '\n'])
+                output = tracerouteoutput.decode('ascii').split("\n")
+                for line in output:
+#                    print(line)
+                    tracelog.write("\t\t"+line+'\n')
+                tracelog.writelines(["-"*30, '\n'])
 
     def doPingTest(self):
         ping_parser = pingparsing.PingParsing()
@@ -148,7 +141,7 @@ class PingTest(threading.Thread):
         return { 'Date': datetime.now(),
                  'target':self.pingTarget,
                  'Success': results["packet_receive"],
-                 'Packet Loss %' : results["packet_loss_count"],
+                 'Packet Loss #' : results["packet_loss_count"],
                  'Min' : results["rtt_min"],
                  'Max' : results["rtt_max"],
                  'Avg' : results["rtt_avg"],
