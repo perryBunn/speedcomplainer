@@ -193,7 +193,7 @@ class SpeedTest(threading.Thread):
             if CONFIGURATION["SPEEDTEST"]["exclude_hosts"] not in ["", None]:
                 new_servers = []
                 for server in servers:
-                    if server["id"] not in CONFIGURATION["SPEEDTEST"]["exclude_hosts"]:
+                    if str(server["id"]) not in CONFIGURATION["SPEEDTEST"]["exclude_hosts"]:
                         new_servers.append(server)
                     else:
                         print("Skipping Host ID ", server["id"])
