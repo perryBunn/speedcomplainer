@@ -22,6 +22,7 @@ import humanize
 csv_ping_headers =  ['Date', 'target', 'Success', 'Sent', 'Received', 'Packet Loss #', 'Min', 'Avg', 'Max']
 csv_speed_headers = ['Date', 'target', 'Location', 'Upload Speed', 'Up readable', 'Download Speed',
                      'Down readable', 'Ping', 'Latency']
+csv_traceroute_headers = ["Date", "target", "capture"]
 
 
 shutdownFlag = False
@@ -107,28 +108,37 @@ class PingTest(threading.Thread):
         pingResults = self.doPingTest()
         if pingResults is None:
             print("Ping test failed")
-        self.logPingResults(pingResults)
+#        self.logPingResults(pingResults)
         if pingResults["Packet Loss #"] > 0  and CONFIGURATION["TRACEROUTE"]["traceroute_target"] != "":
 #            print("Packet Loss Detected, running traceroute...", end=' ')
             self.doTraceRoute()
 
     def doTraceRoute(self):
-       if CONFIGURATION["TRACEROUTE"]["logfilename"] != "":
+        print("Performing Traceroute, due to packet loss being detected...")
+        Traceroutelogger = RotatingCsvFile(suffix=CONFIGURATION["TRACEROUTE"]["logfilename"],
+                                                output_headers=csv_traceroute_headers,
+                                                directory="data")
+        Traceroutelogger.setup_append(writeheader=True)
+        row_data = Traceroutelogger.clear_record()
+        if CONFIGURATION["TRACEROUTE"]["logfilename"] != "":
             tracerouteoutput = subprocess.check_output(CONFIGURATION["TRACEROUTE"]["commandline"] +\
                                                       [str(CONFIGURATION["TRACEROUTE"]["timeout"])] +\
                                                       [CONFIGURATION["TRACEROUTE"]["traceroute_target"]],
                                                                 stderr=subprocess.PIPE)#STDOUT, shell=True)
             print("Traceroute Captured....")
-            with open(CONFIGURATION["TRACEROUTE"]["logfilename"]+'.txt', 'a') as tracelog:
-#                tracelog.writelines(["-"*30, '\n'])
-                tracelog.writelines(["%s" % datetime.now(), '\n',
-                                     '\tTraceRoute to %s' % CONFIGURATION["TRACEROUTE"]["traceroute_target"],
-                                     '\n'])
-                output = tracerouteoutput.decode('ascii').split("\n")
-                for line in output:
-#                    print(line)
-                    tracelog.write("\t\t"+line+'\n')
-                tracelog.writelines(["-"*30, '\n'])
+            output = tracerouteoutput.decode('ascii').split("\n")
+            row_data["Date"] = datetime.now()
+            row_data["capture"] = "\n\r".join(output)
+            row_data["target"] = CONFIGURATION["TRACEROUTE"]["traceroute_target"]
+            Traceroutelogger.writerow(row_data)
+            print("Traceroute completed")
+#             with open(os.path.join("Data", CONFIGURATION["TRACEROUTE"]["logfilename"]+'.txt'), 'a') as tracelog:
+#                 tracelog.writelines(["%s" % datetime.now(), '\n',
+#                                      '\tTraceRoute to %s' % CONFIGURATION["TRACEROUTE"]["traceroute_target"],
+#                                      '\n'])
+#                 for line in output:
+#                     tracelog.write("\t\t"+line+'\n')
+#                 tracelog.writelines(["-"*30, '\n'])
 
     def doPingTest(self):
         ping_parser = pingparsing.PingParsing()
@@ -170,9 +180,6 @@ class SpeedTest(threading.Thread):
         super(SpeedTest, self).__init__()
         header_output = False
         self.config = json.load(open('./config.json'))
-#         if not os.path.exists(self.config['log']['files']['speed']):
-#             print("Speed Test Log File does not exist, creating header.")
-#             header_output = True
         self.speedlogger = RotatingCsvFile(suffix=CONFIGURATION["SPEEDTEST"]["logfilename"],
                                           output_headers=csv_speed_headers,
                                           directory="data")
