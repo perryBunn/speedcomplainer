@@ -108,7 +108,7 @@ class PingTest(threading.Thread):
         pingResults = self.doPingTest()
         if pingResults is None:
             print("Ping test failed")
-#        self.logPingResults(pingResults)
+        self.logPingResults(pingResults)
         if pingResults["Packet Loss #"] > 0  and CONFIGURATION["TRACEROUTE"]["traceroute_target"] != "":
 #            print("Packet Loss Detected, running traceroute...", end=' ')
             self.doTraceRoute()
