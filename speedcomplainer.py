@@ -22,7 +22,7 @@ import humanize
 csv_ping_headers =  ['Date', 'target', 'Success', 'Sent', 'Received', 'Packet Loss #', 'Min', 'Avg', 'Max']
 csv_speed_headers = ['Date', 'target', 'Location', 'Upload Speed', 'Up readable', 'Download Speed',
                      'Down readable', 'Ping', 'Latency']
-csv_traceroute_headers = ["Date", "target", "capture"]
+csv_traceroute_headers = ["Date", "target", "Ping DateTime", "Packet Loss #", "capture"]
 
 
 shutdownFlag = False
@@ -111,9 +111,10 @@ class PingTest(threading.Thread):
         self.logPingResults(pingResults)
         if pingResults["Packet Loss #"] > 0  and CONFIGURATION["TRACEROUTE"]["traceroute_target"] != "":
 #            print("Packet Loss Detected, running traceroute...", end=' ')
-            self.doTraceRoute()
+            self.doTraceRoute(pingResults)
 
-    def doTraceRoute(self):
+    def doTraceRoute(self, pingResults):
+        #csv_traceroute_headers = ["Date", "target", "Ping DateTime", "Packet Loss #", "capture"]
         print("Performing Traceroute, due to packet loss being detected...")
         Traceroutelogger = RotatingCsvFile(suffix=CONFIGURATION["TRACEROUTE"]["logfilename"],
                                                 output_headers=csv_traceroute_headers,
@@ -130,6 +131,8 @@ class PingTest(threading.Thread):
             row_data["Date"] = datetime.now()
             row_data["capture"] = "\n\r".join(output)
             row_data["target"] = CONFIGURATION["TRACEROUTE"]["traceroute_target"]
+            row_data["Ping DateTime"] = pingResults["Date"]
+            row_data["Packet Loss #"] = pingResults["Packet Loss #"]
             Traceroutelogger.writerow(row_data)
             print("Traceroute completed")
 #             with open(os.path.join("Data", CONFIGURATION["TRACEROUTE"]["logfilename"]+'.txt'), 'a') as tracelog:
@@ -224,7 +227,7 @@ class SpeedTest(threading.Thread):
                             'Down readable':humanize.naturalsize(results["download"]),
                             'Latency':results["server"]["latency"]}
         except speedtest.SpeedtestBestServerFailure:
-            results = {'Date':datetime.now(),
+            test_results = {'Date':datetime.now(),
                        'target':"Error (Best Server)",
                        'Ping':255,
                        'Upload Speed':-1,
