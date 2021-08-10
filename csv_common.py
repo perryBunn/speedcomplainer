@@ -244,6 +244,7 @@ class BaseCsvFile():
         self.conflictCount = 0
         self.readCount = None
         self.source = None
+        self.allow_append = False
 
     def quote_all(self):
         self.quoting = csv.QUOTE_ALL
@@ -330,6 +331,7 @@ class BaseCsvFile():
                                               delimiter=delimiter,
                                               quoting=self.quoting,
                                               lineterminator=self.lineterm)
+        self.allow_append = False
         self.reading = True
         return True
 
@@ -380,6 +382,58 @@ class BaseCsvFile():
                                           fieldnames=self.output_headers,
                                           quoting=quote_level)
         if writeheader:
+            self.csv_handler.writeheader()
+
+        self.allow_append = False
+        self.writing = True
+        return True
+
+    def setup_append(self, delimiter=',',
+                    writeheader=True,
+                    quoting=True):
+        """
+        Configure for Write only.
+
+        Args:
+            delimiter (string): The delimiting character for the CSV file. By default
+                this is set to a comma (,)
+            overwrite (boolean): Allow overwriting of files.  If set to False, and the
+                file already exists, a RuntimeError will occur. *By Default this
+                is set to True, and will overwrite files.*
+            writeheader (Boolean): Write a header to the CSV file, if set to False,
+                the header will be surpressed.
+            quoting (Boolean): If True (Default), all non-float values will be quoted
+                automatically in the CSV
+
+        Returns:
+            Boolean: True if successfully set, False if the file already
+                          exists, and overwrite is set to False.
+
+        Raises:
+            RuntimeError: if already configured for writing.
+                (This prevents, accidental reconfiguration to a different
+                delimiter.)
+
+        *Note*: This will overwrite any existing file without warning, by
+        default.  Set overwrite to False, if you do not wish to overwrite.
+        """
+        self.allow_append = True
+        if quoting:
+            quote_level = self.quoting
+        else:
+            quote_level = csv.QUOTE_NONE
+
+        if self.reading:
+            raise RuntimeError("Configured for Reading - unable to Write.")
+        if self.path.exists() and self.allow_append is False:
+            return False
+        already_exists = self.path.exists()
+        self.__fh = self.path.open(mode='a', newline='')
+        self.csv_handler = csv.DictWriter(self.__fh,
+                                          delimiter=delimiter,
+                                          fieldnames=self.output_headers,
+                                          quoting=quote_level)
+        if writeheader and already_exists == False:
             self.csv_handler.writeheader()
 
         self.writing = True
