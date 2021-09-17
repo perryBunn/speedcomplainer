@@ -122,10 +122,17 @@ class PingTest(threading.Thread):
         Traceroutelogger.setup_append(writeheader=True)
         row_data = Traceroutelogger.clear_record()
         if CONFIGURATION["TRACEROUTE"]["logfilename"] != "":
-            tracerouteoutput = subprocess.check_output(CONFIGURATION["TRACEROUTE"]["commandline"] +\
-                                                      [str(CONFIGURATION["TRACEROUTE"]["timeout"])] +\
-                                                      [CONFIGURATION["TRACEROUTE"]["traceroute_target"]],
-                                                                stderr=subprocess.PIPE)#STDOUT, shell=True)
+            try:
+                tracerouteoutput = subprocess.check_output(CONFIGURATION["TRACEROUTE"]["commandline"] +\
+                                                          [str(CONFIGURATION["TRACEROUTE"]["timeout"])] +\
+                                                          [CONFIGURATION["TRACEROUTE"]["traceroute_target"]],
+                                                                    stderr=subprocess.PIPE)#STDOUT, shell=True)
+            except subprocess.CalledProcessError:
+                row_data["Date"] = datetime.now()
+                row_data["capture"] = "Error running Traceroute.  Traceroute returned an error code."
+                Traceroutelogger.writerow(row_data)
+                return
+
             print("Traceroute Captured....")
             output = tracerouteoutput.decode('ascii').split("\n")
             row_data["Date"] = datetime.now()
@@ -246,7 +253,7 @@ class SpeedTest(threading.Thread):
             threshold = float(threshold)
             if speedTestResults['Download Speed'] < threshold:
                 message = messages[random.randint(0,len(messages) - 1)].replace('{tweetTo}',
-                                    self.config['tweetTo']).replace('{internetSpeed}', self.config['internetSpeed']).replace('{downloadResult}', str(speedTestResults['downloadResult']))
+                                    self.config['tweetTo']).replace('{internetSpeed}', self.config['internetSpeed']).replace('{downloadResult}', str(speedTestResults['Download Speed']))
 
         if message:
             api = twitter.Api(consumer_key=self.config['twitter']['twitterConsumerKey'],
