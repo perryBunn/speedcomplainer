@@ -1,0 +1,82 @@
+internet:
+    # uptime-interval is measured in seconds
+    uptime-interval: 10
+    # speed-test-interval is measured in seconds
+    speed-test-interval: 90
+    # internet-speed is measured in Mbps
+    internet-speed: 800
+    ping:
+        # This command below will send 10 packets with an interval of 2ms and
+        #   pre-cache 3 packets to send.
+        arguments: |
+            -c 10 -i 0.002 -l 3
+        # List of services to test against.
+        services:
+            AWS:
+                - amazon.com
+                - aws.amazon.com
+            CloudFlare:
+                - 1.1.1.1
+                - 1.0.0.1
+            Google:
+                - gmail.google.com
+                - google.com
+                - 8.8.8.8
+                - 8.8.4.4
+            Twitter:
+                - twitter.com
+    speedtest:
+        # Specific endpoints to test against. If left empty then the
+        #   speedtest-cli will decide. This should be a 5 digit number.
+        endpoints:
+            - 32493
+            - 21640
+            - 30471
+        # Do not pre-allocate upload data. Pre-allocation is enabled by default
+        #   to improve upload performance. To support systems with insufficient
+        #   memory, use this option to avoid a MemoryError
+        no_pre_allocate: false
+    traceroute:
+        # Command to call system traceroute executable.
+        # Linux will use traceroute, Windows will use tracert
+        # You could also specify programs like MyTraceroute
+        cmd: traceroute
+
+twitter:
+    twitterToken: ""
+    twitterConsumerKey: ""
+    twitterTokenSecret: ""
+    twitterConsumerSecret: ""
+    tweetTo: ""
+    tweetThresholds:
+        # These thresholds are in percent of the internet speed. Valid
+        #   thresholds are less than 1 and greater than 0.
+        0.1:
+            - Hey {tweetTo} I'm paying for {internetSpeed}Mbps but getting only {downloadResult} Mbps?!? Shame.
+            - Oi! {tweetTo} $80+/month for {internetSpeed}Mbps and I only get {downloadResult} Mbps? How does that seem fair?
+        0.25:
+            - Uhh {tweetTo} for $80+/month I expect better than {downloadResult}Mbps when I'm paying for {internetSpeed}Mbps. Fix your network!
+            - Hey {tweetTo} why am I only getting {downloadResult}Mbps when I pay for {internetSpeed}Mbps? $80+/month for this??
+        0.5:
+            - Well {tweetTo} I guess {downloadResult}Mbps is better than nothing, still not worth $80/mnth when I expect {internetSpeed}Mbps
+
+system:
+    logging:
+        base_file_name: realspeed
+        dir: LOGS/
+        file_limit: 7
+        file_level: DEBUG
+        console_level: INFO
+        log_fmt: "%(asctime)s: %(levelname)s: %(message)s"
+        rollover_time: 3
+        rollover_interval: 24
+        timezone: -6
+        use_utc: true
+    metrics:
+        # Supported types are csv and json
+        type: json
+        files:
+            ping:
+                base_name: ping_results
+            speed:
+                base_name: speed_results

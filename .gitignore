@@ -1,18 +1,13 @@
-.idea
-
-*.pyc
+.idea/
+data/*
 
 *.csv
-
-disconnects.txt
-
+*.numbers
+*.pyc
 *.xlsx
 
-*.numbers
 
+disconnects.txt
 traceresults.txt
-
 tracerouteparser.py
-.DS_Store
-.DS_Store
 .DS_Store
